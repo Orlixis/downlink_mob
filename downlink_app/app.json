@@ -7,7 +7,6 @@
     "icon": "./assets/downlink-square.png",
     "scheme": "downlink",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "ios": {
       "bundleIdentifier": "com.downlink.app",
       "supportsTablet": true,
@@ -23,7 +22,6 @@
         "backgroundColor": "#0f172a",
         "foregroundImage": "./assets/downlink.png"
       },
-      "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "READ_MEDIA_VIDEO",
@@ -57,7 +55,7 @@
             "minSdkVersion": 24
           },
           "ios": {
-            "deploymentTarget": "15.1"
+            "deploymentTarget": "16.4"
           }
         }
       ]
