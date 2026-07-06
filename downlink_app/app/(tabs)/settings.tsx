@@ -1,11 +1,13 @@
 import { View, Text, Pressable, ScrollView, Switch, Alert, Platform, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { HardDrive, Bell, ChevronRight, Trash2, HelpCircle, Info, Video, ShieldAlert } from 'lucide-react-native';
+import { HardDrive, Bell, ChevronRight, Trash2, HelpCircle, Info, Video, ShieldAlert, Link } from 'lucide-react-native';
 import { useState } from 'react';
 import * as Linking from 'expo-linking';
 import * as Haptics from 'expo-haptics';
+import { useProvider } from '../../src/context/ProviderContext';
 
 export default function SettingsScreen() {
+  const { clearProvider } = useProvider();
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [defaultQuality, setDefaultQuality] = useState('1080p');
 
@@ -85,6 +87,44 @@ export default function SettingsScreen() {
         </View>
 
         {/* Preferences Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionHeading}>Provider Configuration</Text>
+          <View style={styles.settingsGroup}>
+            <Pressable
+              style={styles.settingItem}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                Alert.alert(
+                  "Disconnect Provider",
+                  "Are you sure you want to disconnect? You will lose access to the media catalog until you reconnect.",
+                  [
+                    { text: "Cancel", style: "cancel" },
+                    {
+                      text: "Disconnect",
+                      style: "destructive",
+                      onPress: async () => {
+                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                        await clearProvider();
+                      }
+                    }
+                  ]
+                );
+              }}
+            >
+              <View style={styles.settingLabelRow} pointerEvents="none">
+                <View style={[styles.itemIconBox, { backgroundColor: 'rgba(56, 189, 248, 0.1)', borderColor: 'rgba(56, 189, 248, 0.2)' }]}>
+                  <Link size={20} color="#38bdf8" />
+                </View>
+                <Text style={styles.itemTitle}>Manage Connection</Text>
+              </View>
+              <View style={styles.settingActionRow} pointerEvents="none">
+                <Text style={styles.actionValueText}>Connected</Text>
+                <ChevronRight size={18} color="#64748b" />
+              </View>
+            </Pressable>
+          </View>
+        </View>
+
         <View style={styles.section}>
           <Text style={styles.sectionHeading}>Preferences</Text>
           <View style={styles.settingsGroup}>

@@ -5,7 +5,8 @@ import { useState, useCallback, useEffect } from 'react';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { FORMAT_PRESETS } from '../src/types/index';
-import { DownloadService, API_BASE } from '../src/services/downloadService';
+import { DownloadService } from '../src/services/downloadService';
+import { ClientDownloader } from '../src/services/clientDownloader';
 
 export default function AddModal() {
   const params = useLocalSearchParams<{ url?: string }>();
@@ -16,7 +17,7 @@ export default function AddModal() {
   const [activeTab, setActiveTab] = useState<'video' | 'audio'>('video');
 
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [mediaInfo, setMediaInfo] = useState<{ title: string, author: string, duration: string, thumbnail: string } | null>(null);
+  const [mediaInfo, setMediaInfo] = useState<{ title: string, thumbnail: string } | null>(null);
 
   const videoPresets = Object.values(FORMAT_PRESETS).filter(p => p.videoQuality !== 'none');
   const audioPresets = Object.values(FORMAT_PRESETS).filter(p => p.videoQuality === 'none');
@@ -30,32 +31,14 @@ export default function AddModal() {
       setMediaInfo(null);
 
       try {
-        const res = await fetch(`${API_BASE}/api/formats`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url: targetUrl, preset: 'mp4_720p' }),
-        });
-
-        if (!res.ok) throw new Error('Failed to fetch format info');
-
-        const data = await res.json();
+        const info = await ClientDownloader.getInfo(targetUrl);
 
         if (isActive) {
           LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
 
-          let durationStr = data.duration || "0:00";
-          if (typeof data.duration === 'number') {
-            const m = Math.floor(data.duration / 60);
-            const s = Math.floor(data.duration % 60);
-            durationStr = `${m}:${s.toString().padStart(2, '0')}`;
+          if (info) {
+            setMediaInfo(info);
           }
-
-          setMediaInfo({
-            title: data.title || "Unknown Title",
-            author: data.uploader || "Unknown Author",
-            duration: durationStr,
-            thumbnail: data.thumbnail || "https://images.unsplash.com/photo-1611162617474-5b21e879e113?q=80&w=1000&auto=format&fit=crop"
-          });
           setIsAnalyzing(false);
         }
       } catch (err) {
@@ -183,7 +166,7 @@ export default function AddModal() {
               <View style={styles.thumbContainer}>
                 <Image source={{ uri: mediaInfo.thumbnail }} style={styles.hubThumb} />
                 <View style={styles.hubDuration}>
-                  <Text style={styles.hubDurationText}>{mediaInfo.duration}</Text>
+                  <Text style={styles.hubDurationText}>Video</Text>
                 </View>
               </View>
               <View style={styles.hubInfo}>
@@ -193,7 +176,7 @@ export default function AddModal() {
                     <PlayCircle size={10} color="#0ea5e9" strokeWidth={3} />
                     <Text style={styles.platformBadgeText}>YOUTUBE</Text>
                   </View>
-                  <Text style={styles.hubAuthor} numberOfLines={1}>{mediaInfo.author}</Text>
+                  <Text style={styles.hubAuthor}>Video Download</Text>
                 </View>
               </View>
             </View>
