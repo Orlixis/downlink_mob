@@ -13,19 +13,15 @@
 */
 
 import * as FileSystem from 'expo-file-system/legacy';
-import * as MediaLibrary from 'expo-media-library';
+import * as MediaLibrary from 'expo-media-library/legacy';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { FORMAT_PRESETS } from '../types/index';
 import { DownlinkFileSystem } from './fileSystem';
+import { ClientDownloader } from './clientDownloader';
+import { API_BASE } from '../config/api';
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 export const STORAGE_KEY = '@downlink_downloads';
-// Dynamic API URL based on environment
-// Development: Use local backend (http://localhost:8000)
-// Production: Use Render backend (https://downlink-mob.onrender.com)
-export const API_BASE = __DEV__
-  ? 'http://localhost:8000'
-  : 'https://downlink-mob.onrender.com';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 export type DownloadStatus =
@@ -170,58 +166,40 @@ export const DownloadService = {
 
 // ─── Core download orchestration ──────────────────────────────────────────────
 async function _runDownload(id: string, url: string, presetId: string) {
-  // Step 1: Resolve stream URLs from backend
+  // Step 1: Resolve stream URLs locally via ClientDownloader
   update(id, { status: 'fetching_info' });
 
-  let streamInfo: {
-    video_url?: string;
-    audio_url?: string;
-    merged: boolean;
-    needs_merge: boolean;
-    ext: string;
-    title: string;
-    thumbnail?: string;
-    filesize_approx?: number;
-  };
+  let streamInfo;
+  let cdnUrl: string;
 
   try {
-    console.log('[DownloadService] Fetching formats from:', `${API_BASE}/api/formats`);
-    const res = await fetch(`${API_BASE}/api/formats`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url, preset: presetId }),
-    });
+    console.log('[DownloadService] Extracting formats client-side...');
+    const info = await ClientDownloader.getInfo(url);
+    if (!info) throw new Error('Failed to extract media info');
 
-    if (!res.ok) {
-      let err: any;
-      try {
-        err = await res.json();
-        throw new Error(err.detail ?? `HTTP ${res.status}: ${err.error ?? 'Failed to resolve stream URLs'}`);
-      } catch (parseErr) {
-        // Response is not JSON, read as text
-        const text = await res.text();
-        throw new Error(`HTTP ${res.status}: ${text.substring(0, 200)}`);
-      }
-    }
+    const isAudio = presetId.includes('audio');
+    streamInfo = { 
+      title: info.title, 
+      thumbnail: info.thumbnail, 
+      ext: isAudio ? 'mp3' : 'mp4' 
+    };
 
-    streamInfo = await res.json();
-    console.log('[DownloadService] Successfully fetched stream info');
+    const resolvedUrl = await ClientDownloader.getDownloadUrl(url, isAudio ? 'audio' : 'video');
+    if (!resolvedUrl) throw new Error('Failed to resolve direct CDN URL');
+    cdnUrl = resolvedUrl;
+    
+    console.log('[DownloadService] Successfully resolved stream');
   } catch (err: any) {
     const errorMsg = err.message ?? 'Network error';
-    console.error('[DownloadService] Error:', errorMsg);
-    console.error('[DownloadService] API_BASE:', API_BASE);
-    console.error('[DownloadService] Is dev:', __DEV__);
-    update(id, { status: 'failed', error: `Failed: ${errorMsg}. Backend: ${API_BASE}` });
+    console.log('[DownloadService] Error:', errorMsg);
+    update(id, { status: 'failed', error: `Failed: ${errorMsg}` });
     return;
   }
 
   update(id, {
     title: streamInfo.title,
     thumbnail: streamInfo.thumbnail,
-    needsMerge: streamInfo.needs_merge,
-    size: streamInfo.filesize_approx
-      ? _formatBytes(streamInfo.filesize_approx)
-      : undefined,
+    needsMerge: false,
     status: 'downloading',
     progress: 0,
   });
@@ -232,63 +210,10 @@ async function _runDownload(id: string, url: string, presetId: string) {
   try {
     let finalUri: string;
 
-    if (streamInfo.needs_merge && streamInfo.video_url && streamInfo.audio_url) {
-      // Step 2: Call backend merge endpoint (handles FFmpeg on server)
-      update(id, { status: 'merging', progress: 90, speed: undefined });
-
-      try {
-        const mergeRes = await fetch(`${API_BASE}/api/merge`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            video_url: streamInfo.video_url,
-            audio_url: streamInfo.audio_url,
-            ext: streamInfo.ext,
-          }),
-        });
-
-        if (!mergeRes.ok) {
-          const err = await mergeRes.json().catch(() => ({}));
-          throw new Error(
-            err.detail || `Backend merge failed: ${mergeRes.status}`
-          );
-        }
-
-        // Backend returns binary merged file
-        const mergedBlob = await mergeRes.blob();
-        const mergedPath = cacheDir + `merged.${streamInfo.ext}`;
-
-        // Write blob to file system using base64
-        const reader = new FileReader();
-        await new Promise<void>((resolve, reject) => {
-          reader.onload = async () => {
-            try {
-              const base64 = (reader.result as string).split(',')[1];
-              await FileSystem.writeAsStringAsync(mergedPath, base64, {
-                encoding: FileSystem.EncodingType.Base64,
-              });
-              resolve();
-            } catch (err) {
-              reject(err);
-            }
-          };
-          reader.onerror = () => reject(reader.error);
-          reader.readAsDataURL(mergedBlob);
-        });
-
-        finalUri = mergedPath;
-      } catch (err: any) {
-        throw new Error(
-          `Merge error: ${err.message || String(err)}`
-        );
-      }
-    } else {
-      // Step 2: Single stream (merged or audio-only)
-      const cdnUrl = streamInfo.video_url ?? streamInfo.audio_url ?? '';
-      const filePath = cacheDir + `media.${streamInfo.ext}`;
-      await _downloadFile(id, cdnUrl, filePath, 0, 95);
-      finalUri = filePath;
-    }
+    // Step 2: Download directly from CDN to local cache
+    const filePath = cacheDir + `media.${streamInfo.ext}`;
+    await _downloadFile(id, cdnUrl, filePath, 0, 95);
+    finalUri = filePath;
 
     // Step 3: Save to permanent storage AND gallery
     update(id, { status: 'saving', progress: 97 });

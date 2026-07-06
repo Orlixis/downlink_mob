@@ -1,163 +1,127 @@
-import { View, Text, Pressable, ScrollView, Image } from 'react-native';
+import { View, Text, Pressable, ScrollView, Image, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { DownloadCloud, PlayCircle, Link as LinkIcon, CheckCircle, Plus } from 'lucide-react-native';
+import { Search, Play, Plus, Info } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { DownloadService, DownloadItem } from '../../src/services/downloadService';
+import { useProvider } from '../../src/context/ProviderContext';
+import { LinearGradient } from 'expo-linear-gradient';
+
+// Placeholder data since Go API is not fully wired up yet
+const TRENDING_MOVIES = [
+  { id: '1', title: 'Dune: Part Two', poster: 'https://image.tmdb.org/t/p/w500/1pdfLvkbY9ohJlCjQH2JGqqUT1e.jpg' },
+  { id: '2', title: 'Oppenheimer', poster: 'https://image.tmdb.org/t/p/w500/8Gxv8gSFCU0XGDykEGv7zR1n2ua.jpg' },
+  { id: '3', title: 'Spider-Man: Across the Spider-Verse', poster: 'https://image.tmdb.org/t/p/w500/8Vt6mWEReuy4Of61Lnj5Xj704m8.jpg' },
+  { id: '4', title: 'The Batman', poster: 'https://image.tmdb.org/t/p/w500/74xTEgt7R36Fpooo50r9T25onhq.jpg' },
+];
+
+const NEW_RELEASES = [
+  { id: '5', title: 'Poor Things', poster: 'https://image.tmdb.org/t/p/w500/kCGlIMHnOm8Ph1SqzJ6V6s3O6Qn.jpg' },
+  { id: '6', title: 'Godzilla Minus One', poster: 'https://image.tmdb.org/t/p/w500/q23mhnz1R9Q1hXy4F6FqKqK0Oq9.jpg' },
+  { id: '7', title: 'Anatomy of a Fall', poster: 'https://image.tmdb.org/t/p/w500/kQs6kehvlRsTrISX61T3b66IalH.jpg' },
+  { id: '8', title: 'Killers of the Flower Moon', poster: 'https://image.tmdb.org/t/p/w500/dB6Krk806zeie0ZpGkPHE45Eaqz.jpg' },
+];
 
 export default function HomeScreen() {
   const router = useRouter();
-  const [downloads, setDownloads] = useState<DownloadItem[]>([]);
+  const { providerUrl } = useProvider();
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = DownloadService.subscribe((data) => {
-      setDownloads(data);
-    });
-    return unsubscribe;
-  }, []);
+    // Simulate fetching from Go API
+    setTimeout(() => {
+      setIsLoading(false);
+    }, 800);
+  }, [providerUrl]);
 
-  const activeDownloads = downloads.filter(d => d.status !== 'completed' && d.status !== 'failed');
-  const activeCount = activeDownloads.length;
-  const completedCount = downloads.filter(d => d.status === 'completed').length;
+  const renderMovieRow = (title: string, data: typeof TRENDING_MOVIES) => (
+    <View className="mb-8">
+      <Text className="text-white text-lg font-bold mb-3 px-4 tracking-wide">{title}</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16 }}>
+        {data.map((item, index) => (
+          <Pressable 
+            key={item.id} 
+            className="mr-3"
+            onPress={() => router.push(`/player?id=${item.id}`)}
+          >
+            <View className="w-32 h-48 rounded-xl bg-slate-800 overflow-hidden border border-white/10">
+              <Image 
+                source={{ uri: item.poster }} 
+                className="w-full h-full"
+                resizeMode="cover"
+              />
+            </View>
+          </Pressable>
+        ))}
+      </ScrollView>
+    </View>
+  );
 
-  const recentCompleted = downloads
-    .filter(d => d.status === 'completed')
-    .sort((a, b) => b.createdAt - a.createdAt)
-    .slice(0, 3);
-
-  const topActive = activeDownloads.length > 0 ? activeDownloads[0] : null;
+  if (isLoading) {
+    return (
+      <View className="flex-1 bg-[#0f172a] items-center justify-center">
+        <ActivityIndicator size="large" color="#38bdf8" />
+      </View>
+    );
+  }
 
   return (
-    <SafeAreaView className="flex-1 bg-[#0f172a]">
-      <ScrollView contentContainerStyle={{ padding: 24, paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
-
-        {/* Header Section */}
-        <View className="flex-row justify-between items-center mb-8 pt-2">
-          <View className="flex-row items-center gap-4">
-            <View className="w-14 h-14 bg-slate-800 rounded-[18px] items-center justify-center border border-white/5">
-              <Image source={require('../../assets/downlink.png')} className="w-8 h-8" resizeMode="contain" />
+    <View className="flex-1 bg-[#0f172a]">
+      <ScrollView contentContainerStyle={{ paddingBottom: 100 }} showsVerticalScrollIndicator={false} bounces={false}>
+        
+        {/* Featured Hero Banner */}
+        <View className="w-full h-[500px] relative">
+          <Image 
+            source={{ uri: 'https://image.tmdb.org/t/p/original/8rpDcsfLJypbO6vtecsmEZz4Z6V.jpg' }} // Example featured image
+            className="w-full h-full absolute"
+            resizeMode="cover"
+          />
+          <LinearGradient
+            colors={['transparent', 'rgba(15, 23, 42, 0.6)', '#0f172a']}
+            style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: '60%' }}
+          />
+          
+          {/* Header Nav */}
+          <SafeAreaView className="flex-row justify-between items-center px-4 w-full pt-2 absolute top-0 z-10">
+            <View className="w-10 h-10 bg-black/30 rounded-xl items-center justify-center border border-white/10 backdrop-blur-md">
+              <Image source={require('../../assets/downlink.png')} className="w-6 h-6" resizeMode="contain" />
             </View>
-            <View>
-              <Text className="text-3xl font-extrabold text-slate-50 tracking-tight">Downlink</Text>
-              <Text className="text-slate-400 text-sm font-medium mt-0.5">Premium Media Hub</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Hero Card */}
-        <Pressable
-          className="bg-blue-600 rounded-[28px] p-6 mb-8 overflow-hidden relative"
-          onPress={() => router.push('/add-modal')}
-          style={{ shadowColor: '#2563eb', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.3, shadowRadius: 24, elevation: 10 }}
-        >
-          <View pointerEvents="none">
-            <View className="absolute -top-12 -right-12 w-48 h-48 bg-white/10 rounded-full" />
-            <View className="flex-row items-center gap-5">
-              <View className="w-16 h-16 bg-white/20 rounded-[20px] items-center justify-center">
-                <Plus size={32} color="white" strokeWidth={2.5} />
-              </View>
-              <View className="flex-1">
-                <Text className="text-white text-[22px] font-bold tracking-tight mb-1">Add New Task</Text>
-                <Text className="text-blue-100 text-[15px] font-medium leading-tight">Paste link to download from 1000+ sites</Text>
-              </View>
-            </View>
-          </View>
-        </Pressable>
-
-        {/* Live Download */}
-        {topActive && (
-          <View className="mb-8">
-            <Text className="text-slate-500 text-[13px] font-bold uppercase tracking-widest mb-3 ml-1">Live Download</Text>
-            <Pressable
-              className="bg-slate-800 border border-blue-500/20 rounded-[24px] p-5 relative overflow-hidden"
-              onPress={() => router.push('/downloads')}
-            >
-              <View pointerEvents="none">
-                <View className="absolute top-0 left-0 right-0 h-1 bg-blue-500/10" />
-                <View className="flex-row items-center justify-between mb-4">
-                  <View className="flex-row items-center bg-blue-500/10 px-2.5 py-1.5 rounded-lg border border-blue-500/20">
-                    <View className="w-2 h-2 rounded-full bg-blue-400 mr-2" />
-                    <Text className="text-blue-400 text-[11px] font-bold uppercase tracking-wider">Active Now</Text>
-                  </View>
-                  <Text className="text-blue-400 text-sm font-semibold">{topActive.speed || '...'}</Text>
-                </View>
-                <Text className="text-slate-50 text-lg font-semibold mb-5 leading-snug" numberOfLines={1}>{topActive.title}</Text>
-                <View>
-                  <View className="h-2 bg-slate-900 rounded-full overflow-hidden mb-2.5">
-                    <View className="h-full bg-blue-500 rounded-full" style={{ width: `${topActive.progress}%` }} />
-                  </View>
-                  <View className="flex-row justify-between">
-                    <Text className="text-slate-400 text-[13px] font-medium">{Math.round(topActive.progress)}%</Text>
-                    <Text className="text-slate-400 text-[13px] font-medium">{topActive.eta || '--:--'}</Text>
-                  </View>
-                </View>
-              </View>
+            <Pressable className="w-10 h-10 rounded-full items-center justify-center bg-black/30 border border-white/10 backdrop-blur-md" onPress={() => router.push('/search' as any)}>
+              <Search size={20} color="white" />
             </Pressable>
-          </View>
-        )}
+          </SafeAreaView>
 
-        {/* Stats Overview */}
-        <Text className="text-slate-500 text-[13px] font-bold uppercase tracking-widest mb-3 ml-1">Stats Overview</Text>
-        <View className="flex-row gap-3 mb-8">
-          <Pressable
-            className="flex-1 bg-slate-800 border border-slate-700 rounded-[24px] p-5"
-            onPress={() => router.push('/downloads')}
-          >
-            <View pointerEvents="none">
-              <View className="w-12 h-12 bg-blue-500/10 rounded-2xl items-center justify-center mb-4">
-                <DownloadCloud size={24} color="#3b82f6" />
-              </View>
-              <Text className="text-[32px] font-extrabold text-slate-50 mb-0.5">{activeCount}</Text>
-              <Text className="text-slate-500 text-xs font-semibold uppercase tracking-wider">In Queue</Text>
+          {/* Hero Content */}
+          <View className="absolute bottom-0 w-full px-6 pb-6 items-center">
+            <Text className="text-white text-3xl font-extrabold text-center tracking-tight mb-2">Avatar: The Way of Water</Text>
+            <Text className="text-slate-300 text-xs font-medium text-center mb-6 tracking-wider uppercase">Action • Sci-Fi • Adventure</Text>
+            
+            <View className="flex-row gap-4 w-full">
+              <Pressable 
+                className="flex-1 bg-white h-12 rounded-full flex-row items-center justify-center"
+                onPress={() => router.push('/player?id=featured')}
+              >
+                <Play size={20} color="black" fill="black" className="mr-2" />
+                <Text className="text-black font-bold text-[15px]">Play</Text>
+              </Pressable>
+              
+              <Pressable 
+                className="flex-1 bg-white/20 border border-white/20 h-12 rounded-full flex-row items-center justify-center backdrop-blur-md"
+              >
+                <Info size={20} color="white" className="mr-2" />
+                <Text className="text-white font-bold text-[15px]">Details</Text>
+              </Pressable>
             </View>
-          </Pressable>
-          <Pressable
-            className="flex-1 bg-slate-800 border border-slate-700 rounded-[24px] p-5"
-            onPress={() => router.push('/downloads')}
-          >
-            <View pointerEvents="none">
-              <View className="w-12 h-12 bg-emerald-500/10 rounded-2xl items-center justify-center mb-4">
-                <CheckCircle size={24} color="#10b981" />
-              </View>
-              <Text className="text-[32px] font-extrabold text-slate-50 mb-0.5">{completedCount}</Text>
-              <Text className="text-slate-500 text-xs font-semibold uppercase tracking-wider">Finished</Text>
-            </View>
-          </Pressable>
+          </View>
         </View>
 
-        {/* Recent Activity */}
-        {recentCompleted.length > 0 && (
-          <View>
-            <View className="flex-row justify-between items-center mb-4 px-1">
-              <Text className="text-slate-500 text-[13px] font-bold uppercase tracking-widest">Recent Activity</Text>
-              <Pressable onPress={() => router.push('/downloads')}>
-                <Text className="text-blue-500 text-[13px] font-bold uppercase tracking-wider">See All</Text>
-              </Pressable>
-            </View>
-            {recentCompleted.map((item, index) => (
-              <Pressable
-                key={item.id}
-                className="flex-row items-center bg-slate-800 border border-slate-700 p-3.5 rounded-[20px] mb-3"
-                onPress={() => router.push('/downloads')}
-              >
-                <View className="flex-row items-center flex-1" pointerEvents="none">
-                  {item.thumbnail ? (
-                    <Image source={{ uri: item.thumbnail }} className="w-14 h-14 rounded-[14px] bg-slate-900 mr-4" />
-                  ) : (
-                    <View className="w-14 h-14 rounded-[14px] bg-slate-900 mr-4 items-center justify-center">
-                      <PlayCircle size={24} color="#64748b" />
-                    </View>
-                  )}
-                  <View className="flex-1 justify-center">
-                    <Text className="text-slate-50 font-semibold text-[15px] mb-1.5" numberOfLines={1}>{item.title}</Text>
-                    <Text className="text-slate-500 text-[11px] font-bold uppercase tracking-wider">{item.preset.label} • {item.size || 'Unknown'}</Text>
-                  </View>
-                </View>
-              </Pressable>
-            ))}
-          </View>
-        )}
+        {/* Content Rows */}
+        <View className="mt-6">
+          {renderMovieRow('Trending Now', TRENDING_MOVIES)}
+          {renderMovieRow('New Releases', NEW_RELEASES)}
+          {renderMovieRow('Popular on Provider', [...TRENDING_MOVIES].reverse())}
+        </View>
+
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
